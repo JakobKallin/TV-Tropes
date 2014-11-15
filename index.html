@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>TV Tropes</title>
+	</head>
+	<body>
+		<p><a href="" id="original"></a></p>
+		<p id="description" style="max-width: 30em"></p>
+		<ul id="tropes"></ul>
+		<script>
+			Promise.some = function(promises) {
+				var resolvedPromises = [];
+				var rejectedPromises = [];
+				return new Promise(function(resolve, reject) {
+					promises.forEach(function(p) {
+						p.then(markAsResolved).catch(markAsRejected);
+					});
+					
+					function markAsResolved(p) {
+						resolvedPromises.push(p);
+						resolveIfDone();
+					}
+					
+					function markAsRejected(p) {
+						rejectedPromises.push(p);
+						resolveIfDone();
+					}
+					
+					function resolveIfDone() {
+						if ( resolvedPromises.length + rejectedPromises.length === promises.length ) {
+							resolve(resolvedPromises);
+						}
+					}
+				});
+			};
+			
+			window.addEventListener('load', function() {
+				var list = document.getElementById('tropes');
+				var slug = location.search.split('trope=')[1];
+				
+				request('http://www.corsproxy.com/tvtropes.org/pmwiki/pmwiki.php/Main/' + slug).then(function(req) {
+					var article = req.responseXML.getElementById('wikitext');
+					var links = article.getElementsByTagName('a');
+					Promise.some(shuffle([].slice.call(links)
+					.filter(function(l) {
+						return l.href.indexOf('/Main/') !== -1;
+					}))
+					.slice(0, 5)
+					.map(function(l) {
+						return loadTrope(l.href);
+					}))
+					.then(function(tropes) {
+						tropes.forEach(function(t) {
+							var link = document.createElement('a');
+							link.textContent = t.title;
+							link.href = '?trope=' + encodeURIComponent(t.slug);
+							var item = document.createElement('li');
+							item.appendChild(link);
+							list.appendChild(item);
+						});
+						document.getElementById('description').textContent = description(req.responseXML);
+						document.getElementById('original').href = 'http://tvtropes.org/pmwiki/pmwiki.php/Main/' + slug;
+						document.getElementById('original').textContent = slug;
+					});
+				});
+				
+				function loadTrope(url) {
+					return request('http://www.corsproxy.com/' + url.replace(/^http:\/\//, '')).then(function(req) {
+						return {
+							title: req.responseXML.querySelector('#wikititle .pagetitle span').textContent,
+							slug: url.split('/')[url.split('/').length - 1]
+						};
+					});
+				}
+				
+				function description(doc) {
+					var article = doc.getElementById('wikitext');
+					var description = '';
+					var node = article.firstChild;
+					var beyondPreamble = false;
+					var beyondFirstParagraph = false;
+					while ( !beyondFirstParagraph ) {
+						if ( !beyondPreamble && node.tagName !== 'P' && node.tagName !== 'DIV' && node.textContent.trim() !== '' ) { // text node
+							beyondPreamble = true;
+						}
+						
+						if ( beyondPreamble && node.tagName === 'P' ) {
+							beyondFirstParagraph = true;
+						}
+						else if ( beyondPreamble ) {
+							description += node.textContent;
+						}
+						
+						node = node.nextSibling;
+					}
+					return description;
+				}
+				
+				function shuffle(o) {
+					for (var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+					return o;
+				};
+				
+				function request(url) {
+					return new Promise(function(resolve, reject) {
+						var req = new XMLHttpRequest();
+						req.open('GET', url);
+						req.responseType = 'document';
+						req.addEventListener('load', function() {
+							resolve(req);
+						});
+						req.addEventListener('error', function() {
+							reject(req);
+						});
+						req.addEventListener('abort', function() {
+							reject(req);
+						});
+						req.send();
+					});
+				}
+			});
+		</script>
+	</body>
+</html>

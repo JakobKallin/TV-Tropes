@@ -82,7 +82,7 @@
 					var beyondPreamble = false;
 					var beyondFirstParagraph = false;
 					while ( !beyondFirstParagraph ) {
-						if ( !beyondPreamble && node.tagName !== 'P' && node.tagName !== 'DIV' && node.textContent.trim() !== '' ) { // text node
+						if ( !beyondPreamble && ['P', 'DIV', 'SPAN'].indexOf(node.tagName) === -1 && node.textContent.trim() !== '' ) { // text node
 							beyondPreamble = true;
 						}
 						
